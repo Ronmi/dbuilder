@@ -1,0 +1,123 @@
+#!/bin/bash
+
+DEBIAN_VER=stable
+
+LOGF=""
+function log {
+    echo -n "$* ... "
+}
+
+function ok {
+    ok=done
+    fail=failed
+    code=$1
+    shift
+    if [[ $# > 0 ]]
+    then
+	if [[ $1 != "" ]]
+	then
+	    ok="$1"
+	fi
+    fi
+
+    if [[ $# > 0 ]]
+    then
+	if [[ $2 != "" ]]
+	then
+	    fail="$2"
+	fi
+    fi
+
+    if [[ $code == 0 ]]
+    then
+	echo "${ok}."
+    else
+	echo "${fail}."
+
+	if [[ $LOGF != "" ]]
+	then
+	    cat "$LOGF"
+	fi
+	exit $code
+    fi
+}
+
+function usage {
+    echo "Usage: docker run -t --rm -v /path/to/dsc_file_folder:/data ronmi/dbuilder:${DEBIAN_VER} package_version.dsc"
+    exit 1
+}
+
+if [[ $1 == "" ]]
+then
+    usage
+fi
+
+echo "got filename: $1"
+
+DSC="$1"
+
+
+log test file existance
+if [[ ! -f "$DSC" ]]
+then
+    ok 1
+fi
+ok 0
+
+echo "dsc exists: $DSC"
+shift
+
+uid=$(stat -c '%u' "$DSC")
+echo "got uid: $uid"
+
+gid=$(stat -c '%g' "$DSC")
+echo "got gid: $gid"
+
+if [[ -x /prebuild ]]
+then
+    LOGF=$(mktemp)
+    log prebuild script exists, execute it
+    /prebuild > /dev/null 2>&1
+    ok $?
+    unset LOGF
+fi
+
+log prepare build dir
+D=$(mktemp -d)
+ok 0 "$D"
+
+log copying source files
+cp "$DSC" "$D"
+for i in $(grep -E '^ [0-9a-f]{40} [1-9]([0-9]*) [^ ]+$' "$DSC" | awk '{print $3}')
+do
+    cp "$i" "$D"
+done
+
+ok $?
+
+(
+    cd "$D"
+    LOGF=$(mktemp)
+
+    log extracting source
+    dpkg-source -x "$DSC" src > "$LOGF" 2>&1
+    ok $?
+
+    log update apt lists
+    apt-get update > /dev/null 2>&1
+    ok $?
+    
+    log install build deps
+    apt-get build-dep -y "./$DSC" > "$LOGF" 2>&1
+    ok $?
+
+    # build it
+    (cd src ; dpkg-buildpackage --no-sign --build=binary)
+    if [[ $? != 0 ]]
+    then
+	exit 1
+    fi
+
+    chown "$uid":"$gid" *.deb
+    mv *.deb /data/
+)
