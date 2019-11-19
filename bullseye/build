@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DEBIAN_VER=squeeze
+DEBIAN_VER=bullseye
 
 LOGF=""
 function log {

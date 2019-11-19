@@ -1,6 +1,6 @@
 #!/bin/bash
 
-for i in stable testing unstable experimental squeeze stretch sid
+for i in stable testing unstable experimental stretch buster bullseye sid
 do
     rm -fr $i
     mkdir $i

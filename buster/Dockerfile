@@ -1,4 +1,4 @@
-FROM debian:squeeze
+FROM debian:buster
 MAINTAINER Ronmi Ren <ronmi@shoutloud.top>
 
 RUN apt-get update \
